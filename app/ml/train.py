@@ -41,10 +41,10 @@ def _try_get_structured_model(seed: int = 42):
     except Exception:
         return (
             RandomForestClassifier(
-                n_estimators=240,
-                max_depth=10,
-                min_samples_leaf=4,
-                min_samples_split=8,
+                n_estimators=320,
+                max_depth=12,
+                min_samples_leaf=3,
+                min_samples_split=6,
                 max_features="sqrt",
                 random_state=seed,
             ),
@@ -148,7 +148,7 @@ def train(data_path: Path | None = None, seed: int = 42) -> dict:
     if data_path and data_path.exists():
         df = pd.read_csv(data_path)
     else:
-        df = generate_dataset(n_rows=6500, seed=seed)
+        df = generate_dataset(n_rows=15000, seed=seed)
 
     df = build_features(df)
     y = df["label"].astype(int)
@@ -188,9 +188,9 @@ def train(data_path: Path | None = None, seed: int = 42) -> dict:
         steps=[
             (
                 "tfidf",
-                TfidfVectorizer(ngram_range=(1, 2), min_df=3, max_df=0.92, max_features=7000, stop_words="english"),
+                TfidfVectorizer(ngram_range=(1, 2), min_df=3, max_df=0.95, max_features=9000, stop_words="english"),
             ),
-            ("model", LogisticRegression(max_iter=2000, C=0.95)),
+            ("model", LogisticRegression(max_iter=2500, C=1.15)),
         ]
     )
     text_pipeline.fit(x_train["text_combined"], y_train)

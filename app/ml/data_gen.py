@@ -40,8 +40,39 @@ def _gen_text(brand: str, category: str, suspicious: bool) -> tuple[str, str]:
     )
 
 
+def _maybe_inject_marketplace_noise(
+    title: str,
+    description: str,
+    is_counterfeit: int,
+    seller_rating: float,
+    seller_age_days: int,
+) -> tuple[str, str]:
+    # Legit listings can still look messy, and strong counterfeit sellers can look polished.
+    legit_noisy_phrases = [
+        "No box included but purchased from brand store.",
+        "Receipt misplaced after moving, serial available on request.",
+        "Open-box unit with minor wear from personal collection.",
+    ]
+    counterfeit_polished_phrases = [
+        "Includes invoice photo on request and tracked shipping.",
+        "Trusted repeat seller with premium packaging presentation.",
+        "Looks authentic in hand and ships with fast dispatch.",
+    ]
+
+    if is_counterfeit:
+        if seller_rating > 4.2 and seller_age_days > 180 and np.random.binomial(1, 0.22):
+            description = f"{description} {random.choice(counterfeit_polished_phrases)}"
+    else:
+        if np.random.binomial(1, 0.1):
+            description = f"{description} {random.choice(legit_noisy_phrases)}"
+        if np.random.binomial(1, 0.05):
+            title = title.replace("Original", "Open Box").replace("Verified", "Resale")
+
+    return title, description
+
+
 def generate_dataset(
-    n_rows: int = 5000,
+    n_rows: int = 15000,
     seed: int = 42,
     out_path: Path | None = None,
     include_public_text: bool = True,
@@ -51,36 +82,66 @@ def generate_dataset(
 
     brands = list(BRAND_PRICE_BASELINES.keys())
     rows: list[dict] = []
+    target_public_rows = min(3000, max(0, n_rows // 5)) if include_public_text else 0
+    synthetic_rows = max(0, n_rows - target_public_rows)
 
-    for _ in range(n_rows):
+    for _ in range(synthetic_rows):
         brand = random.choice(brands)
         category = random.choice(CATEGORIES)
         baseline = BRAND_PRICE_BASELINES[brand]
         is_counterfeit = np.random.binomial(1, 0.40)
 
         if is_counterfeit:
-            if np.random.binomial(1, 0.18):
+            if np.random.binomial(1, 0.22):
                 price = max(10, np.random.normal(baseline * 2.4, baseline * 0.8))
             else:
-                price = max(10, np.random.normal(baseline * 0.44, baseline * 0.18))
-            seller_age_days = int(np.clip(np.random.normal(75, 95), 0, 3650))
-            seller_rating = float(np.clip(np.random.normal(3.2, 0.7), 1.0, 5.0))
-            seller_sales = int(np.clip(np.random.normal(70, 110), 0, 10000))
-            review_count = int(np.clip(np.random.normal(18, 28), 0, 100000))
-            return_policy_days = int(np.clip(np.random.normal(7, 7), 0, 40))
-            suspicious_text = np.random.binomial(1, 0.55) == 1
+                price = max(10, np.random.normal(baseline * 0.56, baseline * 0.27))
+
+            # Some counterfeit sellers are sophisticated and look stronger on paper.
+            if np.random.binomial(1, 0.24):
+                seller_age_days = int(np.clip(np.random.normal(320, 230), 0, 3650))
+                seller_rating = float(np.clip(np.random.normal(4.0, 0.45), 1.0, 5.0))
+                seller_sales = int(np.clip(np.random.normal(250, 190), 0, 10000))
+                review_count = int(np.clip(np.random.normal(82, 62), 0, 100000))
+                return_policy_days = int(np.clip(np.random.normal(16, 10), 0, 40))
+                suspicious_text = np.random.binomial(1, 0.32) == 1
+            else:
+                seller_age_days = int(np.clip(np.random.normal(120, 135), 0, 3650))
+                seller_rating = float(np.clip(np.random.normal(3.42, 0.72), 1.0, 5.0))
+                seller_sales = int(np.clip(np.random.normal(92, 130), 0, 10000))
+                review_count = int(np.clip(np.random.normal(26, 34), 0, 100000))
+                return_policy_days = int(np.clip(np.random.normal(10, 9), 0, 40))
+                suspicious_text = np.random.binomial(1, 0.48) == 1
         else:
-            price = max(15, np.random.normal(baseline * 1.00, baseline * 0.26))
-            seller_age_days = int(np.clip(np.random.normal(560, 360), 0, 3650))
-            seller_rating = float(np.clip(np.random.normal(4.35, 0.4), 1.0, 5.0))
-            seller_sales = int(np.clip(np.random.normal(620, 430), 0, 100000))
-            review_count = int(np.clip(np.random.normal(250, 180), 0, 100000))
-            return_policy_days = int(np.clip(np.random.normal(22, 12), 0, 90))
-            suspicious_text = np.random.binomial(1, 0.06) == 1
+            if np.random.binomial(1, 0.14):
+                price = max(15, np.random.normal(baseline * 0.8, baseline * 0.21))
+                seller_age_days = int(np.clip(np.random.normal(250, 220), 0, 3650))
+                seller_rating = float(np.clip(np.random.normal(4.08, 0.5), 1.0, 5.0))
+                seller_sales = int(np.clip(np.random.normal(260, 180), 0, 100000))
+                review_count = int(np.clip(np.random.normal(92, 74), 0, 100000))
+                return_policy_days = int(np.clip(np.random.normal(15, 11), 0, 90))
+                suspicious_text = np.random.binomial(1, 0.1) == 1
+            else:
+                price = max(15, np.random.normal(baseline * 0.99, baseline * 0.29))
+                seller_age_days = int(np.clip(np.random.normal(520, 390), 0, 3650))
+                seller_rating = float(np.clip(np.random.normal(4.25, 0.46), 1.0, 5.0))
+                seller_sales = int(np.clip(np.random.normal(560, 430), 0, 100000))
+                review_count = int(np.clip(np.random.normal(225, 180), 0, 100000))
+                return_policy_days = int(np.clip(np.random.normal(20, 15), 0, 90))
+                suspicious_text = np.random.binomial(1, 0.07) == 1
 
         title, description = _gen_text(brand, category, suspicious_text)
-        if np.random.binomial(1, 0.015):
+        title, description = _maybe_inject_marketplace_noise(title, description, int(is_counterfeit), float(seller_rating), int(seller_age_days))
+
+        if np.random.binomial(1, 0.018):
             is_counterfeit = 1 - is_counterfeit
+
+        if np.random.binomial(1, 0.03):
+            seller_rating = None
+        if np.random.binomial(1, 0.04):
+            seller_age_days = None
+        if np.random.binomial(1, 0.05):
+            review_count = max(0, review_count + int(np.random.normal(0, 45)))
         rows.append(
             {
                 "title": title,
@@ -90,7 +151,7 @@ def generate_dataset(
                 "price": round(float(price), 2),
                 "currency": "USD",
                 "seller_age_days": seller_age_days,
-                "seller_rating": round(seller_rating, 2),
+                "seller_rating": round(seller_rating, 2) if seller_rating is not None else None,
                 "seller_sales_count": seller_sales,
                 "review_count": review_count,
                 "shipping_country": random.choice(COUNTRIES),
@@ -101,11 +162,23 @@ def generate_dataset(
 
     df = pd.DataFrame(rows)
     if include_public_text:
-        public_rows = load_public_review_text(limit=max(500, n_rows // 4))
+        public_rows = load_public_review_text(limit=target_public_rows)
         if public_rows:
             public_df = pd.DataFrame(public_rows)
             df = pd.concat([df, public_df], ignore_index=True)
-            df = df.sample(frac=1.0, random_state=seed).reset_index(drop=True)
+        if len(df) < n_rows:
+            remainder = generate_dataset(
+                n_rows=n_rows - len(df),
+                seed=seed + 1,
+                out_path=None,
+                include_public_text=False,
+            )
+            df = pd.concat([df, remainder], ignore_index=True)
+
+    if len(df) > n_rows:
+        df = df.sample(n=n_rows, random_state=seed).reset_index(drop=True)
+    else:
+        df = df.sample(frac=1.0, random_state=seed).reset_index(drop=True)
 
     output_path = out_path or (DATA_DIR / "listings.csv")
     output_path.parent.mkdir(parents=True, exist_ok=True)
