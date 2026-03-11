@@ -1,0 +1,244 @@
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import CountUp from 'react-countup'
+import { motion } from 'framer-motion'
+import { Check, Copy, MessageSquareText } from 'lucide-react'
+import { useParams } from 'react-router-dom'
+import { toast } from 'sonner'
+
+import { getListing, sendFeedback } from '@/lib/api'
+import type { AnalysisResponse } from '@/types'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+
+function statusStyles(action: string) {
+  if (action === 'APPROVE') return 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300'
+  if (action === 'REVIEW') return 'bg-amber-500/20 text-amber-600 dark:text-amber-300'
+  return 'bg-red-500/20 text-red-600 dark:text-red-300'
+}
+
+function escapeHtml(text: string) {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+}
+
+export function ResultsPage() {
+  const { listingId } = useParams()
+  const [showHighlights, setShowHighlights] = useState(true)
+  const [label, setLabel] = useState('unsure')
+  const [notes, setNotes] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const query = useQuery({
+    queryKey: ['listing', listingId],
+    queryFn: () => getListing(Number(listingId)),
+    enabled: !!listingId
+  })
+
+  const sessionAnalysis = useMemo(() => {
+    const raw = sessionStorage.getItem('latest-analysis')
+    return raw ? (JSON.parse(raw) as AnalysisResponse) : null
+  }, [])
+
+  const analysis = query.data?.latest_analysis && query.data.latest_analysis.listing_id === Number(listingId)
+    ? query.data.latest_analysis
+    : sessionAnalysis
+
+  const feedbackMutation = useMutation({
+    mutationFn: sendFeedback,
+    onSuccess: () => toast.success('Feedback saved'),
+    onError: () => toast.error('Feedback failed')
+  })
+
+  const highlightedDescription = useMemo(() => {
+    const currentAnalysis = analysis
+    const description = query.data?.listing.description || ''
+    if (!currentAnalysis) return escapeHtml(description)
+    if (!showHighlights || !currentAnalysis.highlights.length) return escapeHtml(description)
+    const ranges = [...currentAnalysis.highlights]
+      .filter((h) => h.start >= 0 && h.end <= description.length && h.start < h.end)
+      .sort((a, b) => a.start - b.start)
+    if (!ranges.length) return escapeHtml(description)
+
+    let cursor = 0
+    let out = ''
+    ranges.forEach((r) => {
+      if (r.start < cursor) return
+      out += escapeHtml(description.slice(cursor, r.start))
+      out += `<mark class="rounded bg-red-400/30 px-0.5 text-inherit">${escapeHtml(description.slice(r.start, r.end))}</mark>`
+      cursor = r.end
+    })
+    out += escapeHtml(description.slice(cursor))
+    return out
+  }, [showHighlights, analysis, query.data?.listing.description])
+
+  if (query.isLoading || !analysis) {
+    return (
+      <div className="grid gap-4">
+        <Skeleton className="h-64" />
+        <Skeleton className="h-48" />
+      </div>
+    )
+  }
+
+  const score = analysis.risk_score
+  const radius = 96
+  const circumference = 2 * Math.PI * radius
+  const progress = circumference - (score / 100) * circumference
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Risk Result</CardTitle>
+          <CardDescription>Unified model decision with explainability.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-6 lg:grid-cols-2">
+          <div className="flex items-center justify-center">
+            <div className="relative h-60 w-60">
+              <svg className="h-full w-full -rotate-90" viewBox="0 0 240 240">
+                <circle cx="120" cy="120" r={radius} stroke="currentColor" className="text-muted/40" strokeWidth="18" fill="none" />
+                <motion.circle
+                  cx="120"
+                  cy="120"
+                  r={radius}
+                  stroke="currentColor"
+                  className="text-primary"
+                  strokeWidth="18"
+                  fill="none"
+                  strokeLinecap="round"
+                  initial={{ strokeDashoffset: circumference }}
+                  animate={{ strokeDashoffset: progress }}
+                  transition={{ duration: 1.2, ease: 'easeOut' }}
+                  strokeDasharray={circumference}
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Risk Score</p>
+                <p className="text-4xl font-semibold">
+                  <CountUp end={score} duration={1.1} decimals={0} />
+                </p>
+                <motion.div animate={{ scale: [1, 1.04, 1] }} transition={{ duration: 2, repeat: Infinity }}>
+                  <Badge className={statusStyles(analysis.action)}>{analysis.action}</Badge>
+                </motion.div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              { label: 'Structured', value: analysis.structured_prob },
+              { label: 'Text', value: analysis.text_prob },
+              { label: 'Fused', value: analysis.fused_prob }
+            ].map((item) => (
+              <motion.div key={item.label} whileHover={{ y: -3 }} className="rounded-2xl border border-border/50 bg-white/40 p-4 dark:bg-slate-900/40">
+                <div className="flex justify-between text-sm">
+                  <span>{item.label}</span>
+                  <span>{(item.value * 100).toFixed(1)}%</span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-muted">
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${item.value * 100}%` }} transition={{ duration: 0.9 }} className="h-2 rounded-full bg-primary" />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Why this was flagged</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {analysis.explanations.map((item, index) => (
+              <motion.div
+                key={`${item.feature}-${index}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="rounded-xl border border-border/50 p-3"
+              >
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{item.feature}</span>
+                  <Badge>{item.source}</Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{item.detail}</p>
+              </motion.div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Description highlights</CardTitle>
+            <CardDescription>Toggle suspicious phrase emphasis.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-3 flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowHighlights((v) => !v)}>
+                {showHighlights ? 'Hide highlights' : 'Show highlights'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(JSON.stringify(analysis, null, 2))
+                  setCopied(true)
+                  toast.success('Copied JSON')
+                  setTimeout(() => setCopied(false), 1000)
+                }}
+              >
+                {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />} Copy JSON
+              </Button>
+            </div>
+            <p className="rounded-xl border border-border/60 p-4 text-sm leading-7" dangerouslySetInnerHTML={{ __html: highlightedDescription }} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Model comparison + feedback</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-3">
+            <div className="rounded-xl border border-border/60 p-4">
+              <p className="text-sm font-medium">Structured Model</p>
+              <p className="text-xs text-muted-foreground">Metadata + seller trust + price band features.</p>
+            </div>
+            <div className="rounded-xl border border-border/60 p-4">
+              <p className="text-sm font-medium">Text Model</p>
+              <p className="text-xs text-muted-foreground">TF-IDF lexical patterns + suspicious phrase features.</p>
+            </div>
+            <div className="rounded-xl border border-border/60 p-4">
+              <p className="text-sm font-medium">Fusion</p>
+              <p className="text-xs text-muted-foreground">Weighted blend with optional calibrator.</p>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-border/60 p-4">
+            <p className="inline-flex items-center text-sm font-medium"><MessageSquareText className="mr-2 h-4 w-4" /> Analyst feedback</p>
+            <Select value={label} onChange={(e) => setLabel(e.target.value)}>
+              <option value="unsure">Unsure</option>
+              <option value="counterfeit">Counterfeit</option>
+              <option value="legit">Legit</option>
+            </Select>
+            <Textarea placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <Button onClick={() => feedbackMutation.mutate({ analysis_id: analysis.analysis_id, label, notes })} disabled={feedbackMutation.isPending}>
+              Submit feedback
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
