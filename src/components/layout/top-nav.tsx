@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion'
-import { Gauge, History, LineChart, Shield } from 'lucide-react'
+import { History, LineChart, Shield } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
+import { BrandMark } from './brand-mark'
 import { ThemeToggle } from './theme-toggle'
 
 const links = [
@@ -16,11 +17,11 @@ export function TopNav() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-6">
         <div className="flex items-center gap-3">
           <div className="rounded-2xl bg-primary/90 p-2 text-primary-foreground">
-            <Gauge className="h-5 w-5" />
+            <BrandMark className="h-5 w-5" />
           </div>
           <div>
             <p className="text-lg font-semibold leading-tight">CounterfeitGuard</p>
-            <p className="text-xs text-muted-foreground">Hybrid counterfeit risk intelligence</p>
+            <p className="text-xs text-muted-foreground">Counterfeit Risk Intelligence</p>
           </div>
         </div>
 

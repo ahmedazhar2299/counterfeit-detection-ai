@@ -128,7 +128,7 @@ export function AnalyzePage() {
         <p className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
           <Sparkles className="mr-2 h-3.5 w-3.5" /> AI-Powered Listing Guardrail
         </p>
-        <h1 className="text-3xl font-semibold md:text-4xl">Analyze counterfeit risk before listing goes live</h1>
+        <h1 className="text-3xl font-semibold md:text-4xl">AI-Driven Counterfeit Risk Assessment Framework</h1>
         <p className="max-w-2xl text-muted-foreground">Hybrid ML combines seller metadata and listing text patterns with explainable decisions.</p>
       </motion.section>
 
