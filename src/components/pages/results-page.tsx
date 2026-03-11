@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import CountUp from 'react-countup'
 import { motion } from 'framer-motion'
-import { Check, Copy, MessageSquareText } from 'lucide-react'
+import { Bot, Check, Copy, MessageSquareText, Sparkles } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -154,9 +154,52 @@ export function ResultsPage() {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="overflow-hidden lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle>AI summary</CardTitle>
+                <CardDescription>Plain-English explanation generated from the model output.</CardDescription>
+              </div>
+              <Badge className={analysis.llm_provider === 'gemini' ? 'bg-sky-500/15 text-sky-600 dark:text-sky-300' : 'bg-slate-500/15 text-slate-600 dark:text-slate-300'}>
+                <Bot className="mr-1 h-3.5 w-3.5" />
+                {analysis.llm_provider === 'gemini' ? 'Gemini Assist' : 'Local Summary'}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative overflow-hidden rounded-[24px] border border-sky-300/30 bg-gradient-to-br from-sky-500/10 via-cyan-400/10 to-emerald-400/10 p-5"
+            >
+              <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-sky-400/20 blur-2xl" />
+              <div className="absolute bottom-0 left-6 h-20 w-20 rounded-full bg-emerald-400/15 blur-2xl" />
+              <div className="relative flex items-start gap-3">
+                <div className="rounded-2xl bg-white/70 p-3 text-sky-600 shadow-sm dark:bg-slate-900/60 dark:text-sky-300">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium tracking-wide text-sky-700 dark:text-sky-300">Why this decision makes sense</p>
+                  <motion.p
+                    key={analysis.llm_summary}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.5 }}
+                    className="max-w-4xl text-[15px] leading-7 text-slate-700 dark:text-slate-100"
+                  >
+                    {analysis.llm_summary || 'No AI summary available.'}
+                  </motion.p>
+                </div>
+              </div>
+            </motion.div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Why this was flagged</CardTitle>
+            <CardDescription>Ranked machine features behind the decision.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {analysis.explanations.map((item, index) => (

@@ -34,6 +34,8 @@ export type AnalysisResponse = {
   structured_prob: number
   text_prob: number
   fused_prob: number
+  llm_summary?: string | null
+  llm_provider?: string | null
   explanations: ExplanationItem[]
   highlights: Highlight[]
   model: {
