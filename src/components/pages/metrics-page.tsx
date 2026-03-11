@@ -9,6 +9,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 const snapshotPalette = ['#38bdf8', '#14b8a6', '#22c55e', '#f59e0b', '#8b5cf6', '#fb7185']
 const volumeGradientId = 'daily-volume-gradient'
+const axisTick = { fill: 'hsl(var(--muted-foreground))', fontSize: 12 }
+const tooltipStyle = {
+  background: 'hsl(var(--card))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: 16,
+  color: 'hsl(var(--foreground))'
+}
 
 export function MetricsPage() {
   const query = useQuery({ queryKey: ['metrics'], queryFn: getMetrics })
@@ -94,31 +101,31 @@ export function MetricsPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
+          <Card className="overflow-hidden border-slate-200/80 bg-white/80 shadow-[0_24px_80px_rgba(148,163,184,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5 dark:shadow-none">
             <CardHeader className="relative">
-              <div className="absolute inset-x-6 top-0 h-24 rounded-full bg-cyan-500/10 blur-3xl" />
+              <div className="absolute inset-x-6 top-0 h-24 rounded-full bg-cyan-500/10 blur-3xl dark:bg-cyan-500/10" />
               <CardTitle>Daily Volume</CardTitle>
               <CardDescription>Live throughput of listing analyses in your current database.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Analyses logged</p>
-                  <p className="mt-2 text-3xl font-semibold">{totalVolume}</p>
+                <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-muted-foreground">Analyses logged</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">{totalVolume}</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Peak day</p>
-                  <p className="mt-2 text-2xl font-semibold">{peakDay?.count ?? 0}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{peakDay?.date ?? 'No activity yet'}</p>
+                <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-muted-foreground">Peak day</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{peakDay?.count ?? 0}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-muted-foreground">{peakDay?.date ?? 'No activity yet'}</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/18 to-sky-500/8 p-4">
-                  <p className="text-xs uppercase tracking-[0.24em] text-cyan-100/80">Current signal</p>
-                  <p className="mt-2 text-2xl font-semibold">{live.summary.latest_risk_score?.toFixed(1) ?? '-'}</p>
-                  <p className="mt-1 text-xs text-cyan-50/70">Latest analyzed listing risk</p>
+                <div className="rounded-2xl border border-cyan-200/70 bg-gradient-to-br from-cyan-100 via-sky-50 to-white p-4 shadow-sm dark:border-white/10 dark:from-cyan-500/18 dark:via-sky-500/10 dark:to-slate-950/20">
+                  <p className="text-xs uppercase tracking-[0.24em] text-cyan-700 dark:text-cyan-100/80">Current signal</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{live.summary.latest_risk_score?.toFixed(1) ?? '-'}</p>
+                  <p className="mt-1 text-xs text-cyan-700/80 dark:text-cyan-50/70">Latest analyzed listing risk</p>
                 </div>
               </div>
 
-              <div className="h-80 rounded-3xl border border-white/10 bg-slate-950/35 p-4">
+              <div className="h-80 rounded-3xl border border-slate-200/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/35">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={live.daily_volume}>
                     <defs>
@@ -127,16 +134,10 @@ export function MetricsPage() {
                         <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.15} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" />
-                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'rgba(2, 6, 23, 0.92)',
-                        border: '1px solid rgba(148, 163, 184, 0.18)',
-                        borderRadius: 16
-                      }}
-                    />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.22)" />
+                    <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={axisTick} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={tooltipStyle} />
                     <Line
                       type="monotone"
                       dataKey="count"
@@ -154,7 +155,7 @@ export function MetricsPage() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-          <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
+          <Card className="overflow-hidden border-slate-200/80 bg-white/80 shadow-[0_24px_80px_rgba(148,163,184,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5 dark:shadow-none">
             <CardHeader>
               <CardTitle>Validation Snapshot</CardTitle>
               <CardDescription>Offline holdout metrics for the deployed fusion pipeline. These only change when you retrain.</CardDescription>
@@ -166,21 +167,21 @@ export function MetricsPage() {
                   return (
                     <div
                       key={item.name}
-                      className={`relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br ${item.tone} p-4`}
+                      className={`relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br ${item.tone} p-4 shadow-sm dark:border-white/10`}
                     >
-                      <div className="absolute inset-x-3 top-0 h-16 rounded-full bg-white/10 blur-2xl" />
+                      <div className="absolute inset-x-3 top-0 h-16 rounded-full bg-white/40 blur-2xl dark:bg-white/10" />
                       <div className="relative flex items-start justify-between">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.2em] text-slate-300">{item.name}</p>
-                          <p className="mt-3 text-3xl font-semibold text-white">{(item.value * 100).toFixed(2)}%</p>
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300">{item.name}</p>
+                          <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">{(item.value * 100).toFixed(2)}%</p>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-slate-950/40 p-2">
-                          <Icon className="h-4 w-4 text-white" />
+                        <div className="rounded-xl border border-slate-200/80 bg-white/80 p-2 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                          <Icon className="h-4 w-4 text-slate-700 dark:text-white" />
                         </div>
                       </div>
-                      <div className="relative mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
+                      <div className="relative mt-4 h-1.5 overflow-hidden rounded-full bg-white/60 dark:bg-white/10">
                         <motion.div
-                          className="h-full rounded-full bg-white"
+                          className="h-full rounded-full bg-slate-900 dark:bg-white"
                           initial={{ width: 0 }}
                           animate={{ width: `${Math.max(4, item.value * 100)}%` }}
                           transition={{ duration: 0.7, delay: 0.04 * index }}
@@ -192,16 +193,16 @@ export function MetricsPage() {
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Training rows</p>
-                  <p className="mt-2 text-2xl font-semibold">{validation.dataset_profile.row_count.toLocaleString()}</p>
+                <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500 dark:text-muted-foreground">Training rows</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{validation.dataset_profile.row_count.toLocaleString()}</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Model stack</p>
-                  <p className="mt-2 text-sm text-slate-200">
+                <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500 dark:text-muted-foreground">Model stack</p>
+                  <p className="mt-2 text-sm text-slate-800 dark:text-slate-200">
                     {validation.model_types.structured} + {validation.model_types.text}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">{validation.model_types.fusion}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-muted-foreground">{validation.model_types.fusion}</p>
                 </div>
               </div>
             </CardContent>
@@ -220,9 +221,9 @@ export function MetricsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={actionData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
+                  <XAxis dataKey="name" tick={axisTick} />
+                  <YAxis allowDecimals={false} tick={axisTick} />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Bar dataKey="value" fill="#14b8a6" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -240,9 +241,9 @@ export function MetricsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={scoreBandData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
+                  <XAxis dataKey="name" tick={axisTick} />
+                  <YAxis allowDecimals={false} tick={axisTick} />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Bar dataKey="value" fill="#38bdf8" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -262,9 +263,9 @@ export function MetricsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={classBalanceData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
+                  <XAxis dataKey="name" tick={axisTick} />
+                  <YAxis allowDecimals={false} tick={axisTick} />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Bar dataKey="value" fill="#22c55e" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -285,9 +286,10 @@ export function MetricsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[...shapData].reverse()} layout="vertical" margin={{ left: 12, right: 12 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                    <XAxis type="number" />
-                    <YAxis type="category" dataKey="shortLabel" width={136} tick={{ fontSize: 11 }} />
+                    <XAxis type="number" tick={axisTick} />
+                    <YAxis type="category" dataKey="shortLabel" width={136} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
                     <Tooltip
+                      contentStyle={tooltipStyle}
                       formatter={(value: number) => value.toFixed(4)}
                       labelFormatter={(_, payload) => payload?.[0]?.payload?.feature ?? ''}
                     />
@@ -325,9 +327,9 @@ export function MetricsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={rocData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                  <XAxis dataKey="fpr" />
-                  <YAxis />
-                  <Tooltip />
+                  <XAxis dataKey="fpr" tick={axisTick} />
+                  <YAxis tick={axisTick} />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Legend />
                   <Line type="monotone" dataKey="tpr" stroke="#0ea5e9" strokeWidth={3} dot={false} name="TPR" />
                 </LineChart>
@@ -346,9 +348,9 @@ export function MetricsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={calibration}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                  <XAxis dataKey="pred" />
-                  <YAxis />
-                  <Tooltip />
+                  <XAxis dataKey="pred" tick={axisTick} />
+                  <YAxis tick={axisTick} />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Line type="monotone" dataKey="true" stroke="#14b8a6" strokeWidth={3} dot={false} name="Observed" />
                 </LineChart>
               </ResponsiveContainer>
@@ -366,9 +368,9 @@ export function MetricsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={confusionData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                  <XAxis dataKey="metric" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
+                  <XAxis dataKey="metric" tick={axisTick} />
+                  <YAxis allowDecimals={false} tick={axisTick} />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Bar dataKey="value" fill="#38bdf8" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
