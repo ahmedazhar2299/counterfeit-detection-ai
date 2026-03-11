@@ -23,11 +23,11 @@ function statusStyles(action: string) {
 
 function escapeHtml(text: string) {
   return text
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 function getSignalTone(action: AnalysisResponse['action']) {
@@ -255,7 +255,7 @@ export function ResultsPage() {
                         className="rounded-2xl border border-white/40 bg-white/50 p-4 backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/30"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold capitalize text-slate-800 dark:text-slate-100">{item.feature.replaceAll('_', ' ')}</p>
+                          <p className="text-sm font-semibold capitalize text-slate-800 dark:text-slate-100">{item.feature.replace(/_/g, ' ')}</p>
                           <Badge>{item.source}</Badge>
                         </div>
                         <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{item.detail}</p>
@@ -281,7 +281,7 @@ export function ResultsPage() {
                   return (
                     <div key={`${item.source}-${item.feature}`} className="space-y-1.5">
                       <div className="flex items-center justify-between gap-3 text-xs">
-                        <span className="capitalize text-slate-700 dark:text-slate-300">{item.feature.replaceAll('_', ' ')}</span>
+                        <span className="capitalize text-slate-700 dark:text-slate-300">{item.feature.replace(/_/g, ' ')}</span>
                         <span className="text-muted-foreground">{item.source}</span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-muted/80">

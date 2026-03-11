@@ -50,14 +50,43 @@ export type ListingWithAnalysis = {
 }
 
 export type MetricsPayload = {
-  metrics: {
+  model_validation: {
     precision: number
     recall: number
     f1: number
     roc_auc: number
+    train_accuracy: number
+    test_accuracy: number
+    train_error: number
+    test_error: number
     confusion_matrix: number[][]
     roc_curve: { fpr: number[]; tpr: number[] }
     calibration_curve: { pred: number[]; true: number[] }
+    dataset_profile: {
+      row_count: number
+      class_balance: {
+        legit: number
+        counterfeit: number
+      }
+    }
+    feature_importance?: {
+      method: string
+      items: Array<{
+        feature: string
+        importance: number
+      }>
+    }
     model_types: Record<string, string>
+  }
+  live_marketplace: {
+    summary: {
+      total_analyses: number
+      total_feedback: number
+      average_risk_score: number
+      latest_risk_score: number | null
+    }
+    action_counts: Record<string, number>
+    score_bands: Record<string, number>
+    daily_volume: Array<{ date: string; count: number }>
   }
 }
