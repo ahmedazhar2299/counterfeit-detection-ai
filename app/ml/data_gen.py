@@ -53,7 +53,12 @@ def generate_dataset(n_rows: int = 5000, seed: int = 42, out_path: Path | None =
         is_counterfeit = np.random.binomial(1, 0.28)
 
         if is_counterfeit:
-            price = max(10, np.random.normal(baseline * 0.22, baseline * 0.08))
+            # Counterfeit listings skew cheap, but a minority use extreme overpricing
+            # to imply authenticity or hide within luxury marketplaces.
+            if np.random.binomial(1, 0.16):
+                price = max(10, np.random.normal(baseline * 2.9, baseline * 1.1))
+            else:
+                price = max(10, np.random.normal(baseline * 0.22, baseline * 0.08))
             seller_age_days = int(np.clip(np.random.normal(30, 35), 0, 3650))
             seller_rating = float(np.clip(np.random.normal(2.9, 0.9), 1.0, 5.0))
             seller_sales = int(np.clip(np.random.normal(35, 40), 0, 10000))

@@ -92,11 +92,31 @@ class RiskEngine:
     def _structured_explanations(self, frame: pd.DataFrame) -> list[dict]:
         row = frame.iloc[0]
         items = [
-            ("price_ratio_to_typical", float(row["price_ratio_to_typical"])),
-            ("seller_trust_score", float(row["seller_trust_score"])),
-            ("seller_new_flag", float(row["seller_new_flag"])),
-            ("review_to_sales_ratio", float(row["review_to_sales_ratio"])),
-            ("suspicious_phrase_count", float(row["suspicious_phrase_count"])),
+            (
+                "price anomaly",
+                float(row["price_deviation_abs_log"]),
+                f"Price is {float(row['price_ratio_to_typical']):.2f}x the typical brand baseline.",
+            ),
+            (
+                "seller trust",
+                float(max(0.0, 4.5 - float(row["seller_trust_score"]))),
+                f"Seller trust score is {float(row['seller_trust_score']):.2f}.",
+            ),
+            (
+                "new seller",
+                float(row["seller_new_flag"]),
+                f"Seller new flag is {int(row['seller_new_flag'])}.",
+            ),
+            (
+                "review-to-sales mismatch",
+                float(row["review_to_sales_ratio"]),
+                f"Review-to-sales ratio is {float(row['review_to_sales_ratio']):.3f}.",
+            ),
+            (
+                "suspicious phrase count",
+                float(row["suspicious_phrase_count"]),
+                f"Suspicious phrase count is {int(row['suspicious_phrase_count'])}.",
+            ),
         ]
         items.sort(key=lambda item: abs(item[1]), reverse=True)
         return [
@@ -104,10 +124,54 @@ class RiskEngine:
                 "source": "structured",
                 "feature": name,
                 "contribution": round(value, 4),
-                "detail": f"Observed {name}={value:.3f}.",
+                "detail": detail,
             }
-            for name, value in items[:5]
+            for name, value, detail in items[:5]
         ]
+
+    def _apply_rule_adjustment(self, row: pd.DataFrame, fused_prob: float) -> tuple[float, list[dict]]:
+        current = fused_prob
+        rule_notes: list[dict] = []
+        ratio = float(row["price_ratio_to_typical"].iloc[0])
+        trust = float(row["seller_trust_score"].iloc[0])
+        seller_new = int(row["seller_new_flag"].iloc[0])
+        suspicious_count = int(row["suspicious_phrase_count"].iloc[0])
+
+        if ratio > 4.0:
+            uplift = min(0.45, 0.08 + np.log(ratio) * 0.10)
+            current = min(0.99, current + uplift)
+            rule_notes.append(
+                {
+                    "source": "fusion",
+                    "feature": "extreme_price_outlier",
+                    "contribution": round(uplift, 4),
+                    "detail": f"Rule boost applied because price is {ratio:.2f}x the typical baseline.",
+                }
+            )
+        if ratio < 0.35:
+            uplift = 0.12
+            current = min(0.99, current + uplift)
+            rule_notes.append(
+                {
+                    "source": "fusion",
+                    "feature": "deep_discount_outlier",
+                    "contribution": round(uplift, 4),
+                    "detail": f"Rule boost applied because price is unusually low at {ratio:.2f}x typical.",
+                }
+            )
+        if seller_new and trust < 3.2 and suspicious_count > 0:
+            uplift = 0.08
+            current = min(0.99, current + uplift)
+            rule_notes.append(
+                {
+                    "source": "fusion",
+                    "feature": "seller_risk_combination",
+                    "contribution": round(uplift, 4),
+                    "detail": "Rule boost applied for new seller, weak trust signals, and suspicious phrasing.",
+                }
+            )
+
+        return current, rule_notes
 
     def analyze(self, payload: dict) -> RiskResult:
         row = build_features(pd.DataFrame([payload]))
@@ -117,6 +181,7 @@ class RiskEngine:
         fused_default = 0.6 * structured_prob + 0.4 * text_prob
         fused_prob = float(self.calibrator.predict_proba([[structured_prob, text_prob]])[:, 1][0])
         fused_prob = 0.5 * fused_prob + 0.5 * fused_default
+        fused_prob, rule_notes = self._apply_rule_adjustment(row, fused_prob)
         risk_score = round(min(100.0, max(0.0, fused_prob * 100)), 2)
         action = self._action_from_score(risk_score)
         description = str(payload.get("description", ""))
@@ -128,7 +193,7 @@ class RiskEngine:
                 "contribution": round(fused_prob, 4),
                 "detail": f"Fusion combined structured={structured_prob:.3f} and text={text_prob:.3f}.",
             }
-        ]
+        ] + rule_notes
         explanations.sort(key=lambda item: abs(item["contribution"]), reverse=True)
 
         return RiskResult(

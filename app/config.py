@@ -1,10 +1,16 @@
+import os
 from pathlib import Path
 
+from .env import load_env_file
+
 BASE_DIR = Path(__file__).resolve().parents[2]
+load_env_file(BASE_DIR / "backend" / ".env")
 DATA_DIR = BASE_DIR / "backend" / "data"
 ARTIFACTS_DIR = BASE_DIR / "backend" / "artifacts"
 DB_PATH = BASE_DIR / "backend" / "counterfeitguard.db"
 MODEL_VERSION = "counterfeitguard-1.0.0"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 DEFAULT_THRESHOLDS = {
     "approve_max": 39,

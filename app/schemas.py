@@ -50,6 +50,8 @@ class AnalysisResponse(BaseModel):
     structured_prob: float
     text_prob: float
     fused_prob: float
+    llm_summary: str | None = None
+    llm_provider: str | None = None
     explanations: list[ExplanationItem]
     highlights: list[Highlight]
     model: ModelMeta

@@ -39,6 +39,8 @@ class Analysis(Base):
     action = Column(String(16), nullable=False)
     explanations_json = Column(JSON, nullable=False)
     highlights_json = Column(JSON, nullable=False)
+    llm_summary = Column(Text, nullable=True)
+    llm_provider = Column(String(32), nullable=True)
     model_version = Column(String(64), nullable=False)
     training_timestamp = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

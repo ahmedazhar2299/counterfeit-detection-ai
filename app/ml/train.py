@@ -57,6 +57,9 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out["brand_baseline"] = out["brand"].map(BRAND_PRICE_BASELINES).fillna(out["price"].median())
     out["price_ratio_to_typical"] = out["price"] / out["brand_baseline"].clip(lower=1)
+    out["price_deviation_abs_log"] = np.abs(np.log(out["price_ratio_to_typical"].clip(lower=0.01)))
+    out["price_too_low_flag"] = (out["price_ratio_to_typical"] < 0.45).astype(int)
+    out["price_too_high_flag"] = (out["price_ratio_to_typical"] > 1.8).astype(int)
     out["seller_trust_score"] = (
         out["seller_rating"].fillna(3.5) * 0.45
         + np.log1p(out["seller_sales_count"].fillna(0)) * 0.25
@@ -89,6 +92,9 @@ def train(data_path: Path | None = None, seed: int = 42) -> dict:
         "review_count",
         "return_policy_days",
         "price_ratio_to_typical",
+        "price_deviation_abs_log",
+        "price_too_low_flag",
+        "price_too_high_flag",
         "seller_trust_score",
         "seller_new_flag",
         "review_to_sales_ratio",

@@ -5,10 +5,12 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .config import ARTIFACTS_DIR, DEFAULT_THRESHOLDS
 from .database import Base, engine, get_db
+from .llm import maybe_generate_llm_summary
 from .ml.risk_engine import get_engine
 from .models import Analysis, Feedback, Listing, TrainingRun
 from .schemas import (
@@ -23,6 +25,21 @@ from .schemas import (
 )
 
 Base.metadata.create_all(bind=engine)
+
+
+def _ensure_analysis_columns() -> None:
+    with engine.begin() as connection:
+        columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(analyses)")).fetchall()
+        }
+        if "llm_summary" not in columns:
+            connection.execute(text("ALTER TABLE analyses ADD COLUMN llm_summary TEXT"))
+        if "llm_provider" not in columns:
+            connection.execute(text("ALTER TABLE analyses ADD COLUMN llm_provider VARCHAR(32)"))
+
+
+_ensure_analysis_columns()
 
 app = FastAPI(title="CounterfeitGuard API", version="1.0.0")
 app.add_middleware(
@@ -43,6 +60,8 @@ def _analysis_to_response(analysis: Analysis) -> AnalysisResponse:
         structured_prob=analysis.structured_prob,
         text_prob=analysis.text_prob,
         fused_prob=analysis.fused_prob,
+        llm_summary=analysis.llm_summary,
+        llm_provider=analysis.llm_provider,
         explanations=analysis.explanations_json,
         highlights=analysis.highlights_json,
         model={
@@ -72,12 +91,22 @@ def _listing_to_response(listing: Listing) -> ListingResponse:
 
 
 @app.post("/api/analyze", response_model=AnalysisResponse)
-def analyze_listing(payload: ListingInput, db: Session = Depends(get_db)):
+async def analyze_listing(payload: ListingInput, db: Session = Depends(get_db)):
     listing = Listing(**payload.model_dump())
     db.add(listing)
     db.flush()
 
     result = get_engine().analyze(payload.model_dump())
+    llm = await maybe_generate_llm_summary(
+        payload=payload.model_dump(),
+        action=result.action,
+        risk_score=result.risk_score,
+        structured_prob=result.structured_prob,
+        text_prob=result.text_prob,
+        fused_prob=result.fused_prob,
+        explanations=result.explanations,
+        highlights=result.highlights,
+    )
     analysis = Analysis(
         listing_id=listing.id,
         structured_prob=result.structured_prob,
@@ -87,6 +116,8 @@ def analyze_listing(payload: ListingInput, db: Session = Depends(get_db)):
         action=result.action,
         explanations_json=result.explanations,
         highlights_json=result.highlights,
+        llm_summary=llm.summary,
+        llm_provider=llm.provider,
         model_version=result.model_version,
         training_timestamp=result.training_timestamp,
     )
