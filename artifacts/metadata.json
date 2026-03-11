@@ -1,0 +1,40 @@
+{
+  "version": "counterfeitguard-1.0.0",
+  "trained_at": "2026-03-11T21:14:46.535434+00:00",
+  "structured_columns": {
+    "numeric": [
+      "price",
+      "seller_age_days",
+      "seller_rating",
+      "seller_sales_count",
+      "review_count",
+      "return_policy_days",
+      "price_ratio_to_typical",
+      "seller_trust_score",
+      "seller_new_flag",
+      "review_to_sales_ratio",
+      "suspicious_phrase_count"
+    ],
+    "categorical": [
+      "brand",
+      "category",
+      "shipping_country",
+      "currency"
+    ]
+  },
+  "suspicious_phrases": [
+    "mirror quality",
+    "1:1",
+    "factory surplus",
+    "no box",
+    "authentic style",
+    "inspired",
+    "replica",
+    "copy version",
+    "looks original",
+    "discounted luxury",
+    "wholesale lot",
+    "dm for more",
+    "without receipt"
+  ]
+}
