@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import CountUp from 'react-countup'
 import { motion } from 'framer-motion'
-import { Bot, Check, Copy, MessageSquareText, Sparkles } from 'lucide-react'
+import { Bot, Check, Copy, MessageSquareText, ShieldCheck, Sparkles, TriangleAlert } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -28,6 +28,32 @@ function escapeHtml(text: string) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
+}
+
+function getSignalTone(action: AnalysisResponse['action']) {
+  if (action === 'APPROVE') {
+    return {
+      title: 'What looked healthy',
+      description: 'The strongest signals that supported automatic approval.',
+      eyebrow: 'Approval confidence signals',
+      icon: ShieldCheck,
+      iconClass: 'bg-white/70 text-emerald-600 dark:bg-slate-900/60 dark:text-emerald-300',
+      panelClass: 'border-emerald-300/30 bg-gradient-to-br from-emerald-500/10 via-teal-400/10 to-sky-400/10',
+      barClass: 'bg-gradient-to-r from-emerald-400 to-sky-400',
+      eyebrowClass: 'text-emerald-700 dark:text-emerald-300'
+    }
+  }
+
+  return {
+    title: 'What raised concern',
+    description: 'The strongest signals that pushed this listing toward review risk.',
+    eyebrow: 'Risk-driving signals',
+    icon: TriangleAlert,
+    iconClass: 'bg-white/70 text-amber-600 dark:bg-slate-900/60 dark:text-amber-300',
+    panelClass: 'border-amber-300/30 bg-gradient-to-br from-amber-500/10 via-orange-400/10 to-rose-400/10',
+    barClass: 'bg-gradient-to-r from-amber-400 to-rose-400',
+    eyebrowClass: 'text-amber-700 dark:text-amber-300'
+  }
 }
 
 export function ResultsPage() {
@@ -93,6 +119,9 @@ export function ResultsPage() {
   const radius = 96
   const circumference = 2 * Math.PI * radius
   const progress = circumference - (score / 100) * circumference
+  const signalTone = getSignalTone(analysis.action)
+  const SignalIcon = signalTone.icon
+  const primarySignals = analysis.explanations.slice(0, 3)
 
   return (
     <div className="space-y-6">
@@ -180,7 +209,9 @@ export function ResultsPage() {
                   <Sparkles className="h-5 w-5" />
                 </div>
                 <div className="space-y-2">
-                  <p className="text-sm font-medium tracking-wide text-sky-700 dark:text-sky-300">Why this decision makes sense</p>
+                  <p className="text-sm font-medium tracking-wide text-sky-700 dark:text-sky-300">
+                    {analysis.action === 'APPROVE' ? 'Why the system felt comfortable approving this' : 'Why the system wants extra attention here'}
+                  </p>
                   <motion.p
                     key={analysis.llm_summary}
                     initial={{ opacity: 0 }}
@@ -198,32 +229,85 @@ export function ResultsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Why this was flagged</CardTitle>
-            <CardDescription>Ranked machine features behind the decision.</CardDescription>
+            <CardTitle>{signalTone.title}</CardTitle>
+            <CardDescription>{signalTone.description}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {analysis.explanations.map((item, index) => (
-              <motion.div
-                key={`${item.feature}-${index}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="rounded-xl border border-border/50 p-3"
-              >
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{item.feature}</span>
-                  <Badge>{item.source}</Badge>
+          <CardContent className="space-y-4">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`relative overflow-hidden rounded-[24px] border p-5 ${signalTone.panelClass}`}
+            >
+              <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-white/20 blur-2xl dark:bg-white/5" />
+              <div className="relative flex items-start gap-3">
+                <div className={`rounded-2xl p-3 shadow-sm ${signalTone.iconClass}`}>
+                  <SignalIcon className="h-5 w-5" />
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{item.detail}</p>
-              </motion.div>
-            ))}
+                <div className="w-full space-y-3">
+                  <p className={`text-sm font-medium tracking-wide ${signalTone.eyebrowClass}`}>{signalTone.eyebrow}</p>
+                  <div className="grid gap-3">
+                    {primarySignals.map((item, index) => (
+                      <motion.div
+                        key={`${item.feature}-${index}`}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.06 }}
+                        className="rounded-2xl border border-white/40 bg-white/50 p-4 backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/30"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold capitalize text-slate-800 dark:text-slate-100">{item.feature.replaceAll('_', ' ')}</p>
+                          <Badge>{item.source}</Badge>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{item.detail}</p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            <div className="rounded-2xl border border-border/50 bg-white/35 p-4 dark:bg-slate-900/30">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">
+                  {analysis.action === 'APPROVE' ? 'Supporting signal mix' : 'Risk signal mix'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {analysis.action === 'APPROVE' ? 'Shown for transparency' : 'Shown for analyst review'}
+                </p>
+              </div>
+              <div className="mt-3 space-y-3">
+                {analysis.explanations.slice(0, 6).map((item) => {
+                  const normalized = Math.min(100, Math.max(8, Math.abs(item.contribution) * 100))
+                  return (
+                    <div key={`${item.source}-${item.feature}`} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3 text-xs">
+                        <span className="capitalize text-slate-700 dark:text-slate-300">{item.feature.replaceAll('_', ' ')}</span>
+                        <span className="text-muted-foreground">{item.source}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-muted/80">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${normalized}%` }}
+                          transition={{ duration: 0.8 }}
+                          className={`h-full rounded-full ${signalTone.barClass}`}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Description highlights</CardTitle>
-            <CardDescription>Toggle suspicious phrase emphasis.</CardDescription>
+            <CardDescription>
+              {analysis.highlights.length
+                ? 'Text segments that contributed to model concern.'
+                : 'No suspicious phrasing was detected in the listing text.'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="mb-3 flex items-center gap-2">
