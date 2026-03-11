@@ -82,7 +82,8 @@ class FeedbackResponse(BaseModel):
 
 
 class MetricsResponse(BaseModel):
-    metrics: dict
+    model_validation: dict
+    live_marketplace: dict
 
 
 class ModelInfoResponse(BaseModel):

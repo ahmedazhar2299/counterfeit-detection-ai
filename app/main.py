@@ -183,7 +183,42 @@ def get_metrics(db: Session = Depends(get_db)):
             )
         )
         db.commit()
-    return MetricsResponse(metrics=metrics)
+
+    analyses = db.query(Analysis).order_by(Analysis.created_at.asc()).all()
+    feedback_rows = db.query(Feedback).all()
+
+    action_counts = {"APPROVE": 0, "REVIEW": 0, "BLOCK": 0}
+    score_bands = {"0-39": 0, "40-69": 0, "70-100": 0}
+    daily_volume: dict[str, int] = {}
+
+    for row in analyses:
+        action_counts[row.action] = action_counts.get(row.action, 0) + 1
+        if row.risk_score <= 39:
+            score_bands["0-39"] += 1
+        elif row.risk_score <= 69:
+            score_bands["40-69"] += 1
+        else:
+            score_bands["70-100"] += 1
+        day_key = row.created_at.strftime("%Y-%m-%d")
+        daily_volume[day_key] = daily_volume.get(day_key, 0) + 1
+
+    total_analyses = len(analyses)
+    avg_risk = round(sum(row.risk_score for row in analyses) / total_analyses, 2) if analyses else 0.0
+    latest_risk = analyses[-1].risk_score if analyses else None
+
+    live_marketplace = {
+        "summary": {
+            "total_analyses": total_analyses,
+            "total_feedback": len(feedback_rows),
+            "average_risk_score": avg_risk,
+            "latest_risk_score": latest_risk,
+        },
+        "action_counts": action_counts,
+        "score_bands": score_bands,
+        "daily_volume": [{"date": key, "count": value} for key, value in sorted(daily_volume.items())],
+    }
+
+    return MetricsResponse(model_validation=metrics, live_marketplace=live_marketplace)
 
 
 @app.get("/api/model-info", response_model=ModelInfoResponse)

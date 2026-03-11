@@ -11,6 +11,7 @@ from sklearn.calibration import calibration_curve
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score, roc_curve
 from sklearn.model_selection import train_test_split
@@ -40,9 +41,11 @@ def _try_get_structured_model(seed: int = 42):
     except Exception:
         return (
             RandomForestClassifier(
-                n_estimators=260,
-                max_depth=15,
-                min_samples_leaf=2,
+                n_estimators=240,
+                max_depth=10,
+                min_samples_leaf=4,
+                min_samples_split=8,
+                max_features="sqrt",
                 random_state=seed,
             ),
             "random_forest",
@@ -71,6 +74,72 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     out["text_combined"] = (out["title"].fillna("") + " " + out["description"].fillna("")).str.lower()
     out["suspicious_phrase_count"] = out["text_combined"].apply(lambda txt: sum(phrase in txt for phrase in SUSPICIOUS_PHRASES))
     return out
+
+
+def _feature_names_from_preprocessor(preprocessor: ColumnTransformer) -> list[str]:
+    names: list[str] = []
+    for transformer_name, transformer, columns in preprocessor.transformers_:
+        if transformer_name == "remainder":
+            continue
+        if transformer_name == "num":
+            names.extend(list(columns))
+            continue
+        if hasattr(transformer, "get_feature_names_out"):
+            transformed = transformer.get_feature_names_out(columns)
+            names.extend([str(name) for name in transformed])
+            continue
+        names.extend(list(columns))
+    return names
+
+
+def _compute_feature_importance(
+    pipeline: Pipeline,
+    x_eval: pd.DataFrame,
+    y_eval: pd.Series,
+    top_k: int = 12,
+) -> dict:
+    prep = pipeline.named_steps["prep"]
+    model = pipeline.named_steps["model"]
+    feature_names = _feature_names_from_preprocessor(prep)
+    transformed = prep.transform(x_eval)
+
+    try:
+        import shap  # type: ignore
+
+        sample = transformed[: min(250, transformed.shape[0])]
+        sample_dense = sample.toarray() if hasattr(sample, "toarray") else sample
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(sample_dense)
+        if isinstance(shap_values, list):
+            shap_values = shap_values[1] if len(shap_values) > 1 else shap_values[0]
+        importance = np.abs(np.asarray(shap_values)).mean(axis=0)
+        method = "shap"
+    except Exception:
+        if hasattr(model, "feature_importances_"):
+            importance = np.asarray(model.feature_importances_)
+            method = "model_importance"
+        else:
+            result = permutation_importance(
+                pipeline,
+                x_eval,
+                y_eval,
+                n_repeats=6,
+                random_state=42,
+                scoring="roc_auc",
+            )
+            importance = np.asarray(result.importances_mean)
+            method = "permutation"
+
+    pairs = []
+    for index, raw_name in enumerate(feature_names[: len(importance)]):
+        pairs.append(
+            {
+                "feature": raw_name.replace("brand_", "brand: ").replace("category_", "category: ").replace("shipping_country_", "ship: "),
+                "importance": round(float(importance[index]), 6),
+            }
+        )
+    pairs.sort(key=lambda item: item["importance"], reverse=True)
+    return {"method": method, "items": pairs[:top_k]}
 
 
 def train(data_path: Path | None = None, seed: int = 42) -> dict:
@@ -119,30 +188,47 @@ def train(data_path: Path | None = None, seed: int = 42) -> dict:
         steps=[
             (
                 "tfidf",
-                TfidfVectorizer(ngram_range=(1, 2), min_df=2, max_features=8000, stop_words="english"),
+                TfidfVectorizer(ngram_range=(1, 2), min_df=3, max_df=0.92, max_features=7000, stop_words="english"),
             ),
-            ("model", LogisticRegression(max_iter=2000)),
+            ("model", LogisticRegression(max_iter=2000, C=0.95)),
         ]
     )
     text_pipeline.fit(x_train["text_combined"], y_train)
+    structured_prob_train = structured_pipeline.predict_proba(x_train)[:, 1]
+    text_prob_train = text_pipeline.predict_proba(x_train["text_combined"])[:, 1]
     text_prob_test = text_pipeline.predict_proba(x_test["text_combined"])[:, 1]
 
+    fused_prob_train = 0.6 * structured_prob_train + 0.4 * text_prob_train
     fused_prob_test = 0.6 * structured_prob_test + 0.4 * text_prob_test
     calibrator = LogisticRegression(max_iter=1000)
     calibrator.fit(np.column_stack([structured_prob_test, text_prob_test]), y_test)
+    pred_label_train = (fused_prob_train >= 0.5).astype(int)
     pred_label = (fused_prob_test >= 0.5).astype(int)
 
     roc_fpr, roc_tpr, _ = roc_curve(y_test, fused_prob_test)
     cal_true, cal_pred = calibration_curve(y_test, fused_prob_test, n_bins=10)
+    feature_importance = _compute_feature_importance(structured_pipeline, x_test, y_test)
 
     metrics = {
         "precision": precision_score(y_test, pred_label),
         "recall": recall_score(y_test, pred_label),
         "f1": f1_score(y_test, pred_label),
         "roc_auc": roc_auc_score(y_test, fused_prob_test),
+        "train_accuracy": float(np.mean(pred_label_train == y_train)),
+        "test_accuracy": float(np.mean(pred_label == y_test)),
+        "train_error": float(1.0 - np.mean(pred_label_train == y_train)),
+        "test_error": float(1.0 - np.mean(pred_label == y_test)),
         "confusion_matrix": confusion_matrix(y_test, pred_label).tolist(),
         "roc_curve": {"fpr": roc_fpr.tolist(), "tpr": roc_tpr.tolist()},
         "calibration_curve": {"pred": cal_pred.tolist(), "true": cal_true.tolist()},
+        "dataset_profile": {
+            "row_count": int(len(df)),
+            "class_balance": {
+                "legit": int((y == 0).sum()),
+                "counterfeit": int((y == 1).sum()),
+            },
+        },
+        "feature_importance": feature_importance,
         "model_types": {
             "structured": structured_type,
             "text": "tfidf_logreg",

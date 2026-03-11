@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import BRAND_PRICE_BASELINES, DATA_DIR, SUSPICIOUS_PHRASES
+from .public_data import load_public_review_text
 
 CATEGORIES = ["Sneakers", "Watches", "Handbags", "Electronics", "Audio", "Cameras"]
 COUNTRIES = ["US", "GB", "DE", "JP", "CN", "AE", "TR", "IN"]
@@ -39,7 +40,12 @@ def _gen_text(brand: str, category: str, suspicious: bool) -> tuple[str, str]:
     )
 
 
-def generate_dataset(n_rows: int = 5000, seed: int = 42, out_path: Path | None = None) -> pd.DataFrame:
+def generate_dataset(
+    n_rows: int = 5000,
+    seed: int = 42,
+    out_path: Path | None = None,
+    include_public_text: bool = True,
+) -> pd.DataFrame:
     random.seed(seed)
     np.random.seed(seed)
 
@@ -50,31 +56,31 @@ def generate_dataset(n_rows: int = 5000, seed: int = 42, out_path: Path | None =
         brand = random.choice(brands)
         category = random.choice(CATEGORIES)
         baseline = BRAND_PRICE_BASELINES[brand]
-        is_counterfeit = np.random.binomial(1, 0.28)
+        is_counterfeit = np.random.binomial(1, 0.40)
 
         if is_counterfeit:
-            # Counterfeit listings skew cheap, but a minority use extreme overpricing
-            # to imply authenticity or hide within luxury marketplaces.
-            if np.random.binomial(1, 0.16):
-                price = max(10, np.random.normal(baseline * 2.9, baseline * 1.1))
+            if np.random.binomial(1, 0.18):
+                price = max(10, np.random.normal(baseline * 2.4, baseline * 0.8))
             else:
-                price = max(10, np.random.normal(baseline * 0.22, baseline * 0.08))
-            seller_age_days = int(np.clip(np.random.normal(30, 35), 0, 3650))
-            seller_rating = float(np.clip(np.random.normal(2.9, 0.9), 1.0, 5.0))
-            seller_sales = int(np.clip(np.random.normal(35, 40), 0, 10000))
-            review_count = int(np.clip(np.random.normal(6, 9), 0, 100000))
-            return_policy_days = int(np.clip(np.random.normal(3, 4), 0, 30))
-            suspicious_text = np.random.binomial(1, 0.72) == 1
+                price = max(10, np.random.normal(baseline * 0.44, baseline * 0.18))
+            seller_age_days = int(np.clip(np.random.normal(75, 95), 0, 3650))
+            seller_rating = float(np.clip(np.random.normal(3.2, 0.7), 1.0, 5.0))
+            seller_sales = int(np.clip(np.random.normal(70, 110), 0, 10000))
+            review_count = int(np.clip(np.random.normal(18, 28), 0, 100000))
+            return_policy_days = int(np.clip(np.random.normal(7, 7), 0, 40))
+            suspicious_text = np.random.binomial(1, 0.55) == 1
         else:
-            price = max(15, np.random.normal(baseline * 0.96, baseline * 0.18))
-            seller_age_days = int(np.clip(np.random.normal(640, 420), 0, 3650))
-            seller_rating = float(np.clip(np.random.normal(4.5, 0.35), 1.0, 5.0))
-            seller_sales = int(np.clip(np.random.normal(720, 530), 0, 100000))
-            review_count = int(np.clip(np.random.normal(290, 230), 0, 100000))
-            return_policy_days = int(np.clip(np.random.normal(24, 12), 0, 90))
-            suspicious_text = np.random.binomial(1, 0.03) == 1
+            price = max(15, np.random.normal(baseline * 1.00, baseline * 0.26))
+            seller_age_days = int(np.clip(np.random.normal(560, 360), 0, 3650))
+            seller_rating = float(np.clip(np.random.normal(4.35, 0.4), 1.0, 5.0))
+            seller_sales = int(np.clip(np.random.normal(620, 430), 0, 100000))
+            review_count = int(np.clip(np.random.normal(250, 180), 0, 100000))
+            return_policy_days = int(np.clip(np.random.normal(22, 12), 0, 90))
+            suspicious_text = np.random.binomial(1, 0.06) == 1
 
         title, description = _gen_text(brand, category, suspicious_text)
+        if np.random.binomial(1, 0.015):
+            is_counterfeit = 1 - is_counterfeit
         rows.append(
             {
                 "title": title,
@@ -94,6 +100,13 @@ def generate_dataset(n_rows: int = 5000, seed: int = 42, out_path: Path | None =
         )
 
     df = pd.DataFrame(rows)
+    if include_public_text:
+        public_rows = load_public_review_text(limit=max(500, n_rows // 4))
+        if public_rows:
+            public_df = pd.DataFrame(public_rows)
+            df = pd.concat([df, public_df], ignore_index=True)
+            df = df.sample(frac=1.0, random_state=seed).reset_index(drop=True)
+
     output_path = out_path or (DATA_DIR / "listings.csv")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)

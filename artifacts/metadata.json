@@ -1,6 +1,6 @@
 {
   "version": "counterfeitguard-1.0.0",
-  "trained_at": "2026-03-11T21:14:46.535434+00:00",
+  "trained_at": "2026-03-11T23:20:05.052240+00:00",
   "structured_columns": {
     "numeric": [
       "price",
@@ -10,6 +10,9 @@
       "review_count",
       "return_policy_days",
       "price_ratio_to_typical",
+      "price_deviation_abs_log",
+      "price_too_low_flag",
+      "price_too_high_flag",
       "seller_trust_score",
       "seller_new_flag",
       "review_to_sales_ratio",
