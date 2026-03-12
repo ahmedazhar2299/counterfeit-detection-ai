@@ -16,6 +16,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score, roc_curve
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from ..config import ARTIFACTS_DIR, BRAND_PRICE_BASELINES, MODEL_VERSION, SUSPICIOUS_PHRASES
@@ -174,10 +175,22 @@ def train(data_path: Path | None = None, seed: int = 42) -> dict:
     x_train, x_test, y_train, y_test = train_test_split(df, y, test_size=0.2, random_state=seed, stratify=y)
 
     structured_model, structured_type = _try_get_structured_model(seed=seed)
+    numeric_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+        ]
+    )
+    categorical_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("onehot", OneHotEncoder(handle_unknown="ignore")),
+        ]
+    )
     structured_pre = ColumnTransformer(
         transformers=[
-            ("num", StandardScaler(), structured_cols_numeric),
-            ("cat", OneHotEncoder(handle_unknown="ignore"), structured_cols_categorical),
+            ("num", numeric_pipeline, structured_cols_numeric),
+            ("cat", categorical_pipeline, structured_cols_categorical),
         ]
     )
     structured_pipeline = Pipeline(steps=[("prep", structured_pre), ("model", structured_model)])

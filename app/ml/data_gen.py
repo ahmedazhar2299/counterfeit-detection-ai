@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import BRAND_PRICE_BASELINES, DATA_DIR, SUSPICIOUS_PHRASES
-from .public_data import load_public_review_text
+from .public_data import load_public_product_catalog, load_public_review_text
 
 CATEGORIES = ["Sneakers", "Watches", "Handbags", "Electronics", "Audio", "Cameras"]
 COUNTRIES = ["US", "GB", "DE", "JP", "CN", "AE", "TR", "IN"]
@@ -84,11 +84,14 @@ def generate_dataset(
     rows: list[dict] = []
     target_public_rows = min(3000, max(0, n_rows // 5)) if include_public_text else 0
     synthetic_rows = max(0, n_rows - target_public_rows)
+    public_catalog = load_public_product_catalog(limit=min(4000, max(500, synthetic_rows // 2)))
+    use_public_catalog = len(public_catalog) > 0
 
     for _ in range(synthetic_rows):
-        brand = random.choice(brands)
-        category = random.choice(CATEGORIES)
-        baseline = BRAND_PRICE_BASELINES[brand]
+        anchor = random.choice(public_catalog) if use_public_catalog and np.random.binomial(1, 0.78) else None
+        brand = str(anchor["brand"]) if anchor else random.choice(brands)
+        category = str(anchor["category"]) if anchor else random.choice(CATEGORIES)
+        baseline = BRAND_PRICE_BASELINES.get(brand, float(anchor["price"]) if anchor else 250.0)
         is_counterfeit = np.random.binomial(1, 0.40)
 
         if is_counterfeit:
@@ -130,8 +133,21 @@ def generate_dataset(
                 return_policy_days = int(np.clip(np.random.normal(20, 15), 0, 90))
                 suspicious_text = np.random.binomial(1, 0.07) == 1
 
-        title, description = _gen_text(brand, category, suspicious_text)
+        if anchor and not suspicious_text and np.random.binomial(1, 0.75):
+            title = str(anchor["title"])
+            description = str(anchor["description"])
+        else:
+            title, description = _gen_text(brand, category, suspicious_text)
+
         title, description = _maybe_inject_marketplace_noise(title, description, int(is_counterfeit), float(seller_rating), int(seller_age_days))
+
+        if anchor:
+            review_count = max(review_count, int(anchor.get("review_count", review_count) or review_count))
+            if not is_counterfeit and np.random.binomial(1, 0.7):
+                price = max(15, float(anchor.get("price", price) or price) * np.random.normal(1.0, 0.08))
+                seller_rating = float(anchor.get("seller_rating", seller_rating) or seller_rating)
+                seller_sales = max(seller_sales, int(anchor.get("seller_sales_count", seller_sales) or seller_sales))
+                return_policy_days = int(anchor.get("return_policy_days", return_policy_days) or return_policy_days)
 
         if np.random.binomial(1, 0.018):
             is_counterfeit = 1 - is_counterfeit
@@ -157,6 +173,7 @@ def generate_dataset(
                 "shipping_country": random.choice(COUNTRIES),
                 "return_policy_days": return_policy_days,
                 "label": int(is_counterfeit),
+                "public_source": anchor.get("public_source") if anchor else None,
             }
         )
 

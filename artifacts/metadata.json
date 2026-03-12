@@ -1,6 +1,6 @@
 {
   "version": "counterfeitguard-1.0.0",
-  "trained_at": "2026-03-11T23:55:20.202898+00:00",
+  "trained_at": "2026-03-12T00:42:06.279757+00:00",
   "structured_columns": {
     "numeric": [
       "price",
