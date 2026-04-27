@@ -197,13 +197,6 @@ export function MetricsPage() {
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-500 dark:text-muted-foreground">Training rows</p>
                   <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{validation.dataset_profile.row_count.toLocaleString()}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500 dark:text-muted-foreground">Model stack</p>
-                  <p className="mt-2 text-sm text-slate-800 dark:text-slate-200">
-                    {validation.model_types.structured} + {validation.model_types.text}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-muted-foreground">{validation.model_types.fusion}</p>
-                </div>
               </div>
             </CardContent>
           </Card>

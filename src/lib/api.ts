@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import type { AnalysisResponse, ListingInput, ListingWithAnalysis, MetricsPayload } from '@/types'
+import type { AnalysisResponse, CsvAnalyzeResponse, ListingInput, ListingWithAnalysis, MetricsPayload } from '@/types'
 
 const api = axios.create({
   baseURL: 'http://127.0.0.1:8000',
@@ -9,6 +9,15 @@ const api = axios.create({
 
 export const analyzeListing = async (payload: ListingInput) => {
   const { data } = await api.post<AnalysisResponse>('/api/analyze', payload)
+  return data
+}
+
+export const analyzeListingsCsv = async (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post<CsvAnalyzeResponse>('/api/analyze-csv', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
   return data
 }
 

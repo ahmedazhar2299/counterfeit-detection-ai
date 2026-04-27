@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { motion } from 'framer-motion'
-import { ShieldCheck, Sparkles, TriangleAlert } from 'lucide-react'
+import { FileUp, ShieldCheck, Sparkles, TriangleAlert } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
-import { analyzeListing } from '@/lib/api'
+import { analyzeListing, analyzeListingsCsv } from '@/lib/api'
 import type { ListingInput } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -64,6 +64,8 @@ export function AnalyzePage() {
   const navigate = useNavigate()
   const [form, setForm] = useState<ListingInput>(initial)
   const [showErrors, setShowErrors] = useState(false)
+  const [importSummary, setImportSummary] = useState<{ imported: number; failed: number } | null>(null)
+  const csvInputRef = useRef<HTMLInputElement | null>(null)
 
   const validation = useMemo(() => ({
     title: form.title.trim().length >= 4,
@@ -94,6 +96,25 @@ export function AnalyzePage() {
     }
   })
 
+  const csvMutation = useMutation({
+    mutationFn: analyzeListingsCsv,
+    onSuccess: (res) => {
+      setImportSummary({ imported: res.imported, failed: res.failed })
+      toast.success(`Imported ${res.imported} listing(s), ${res.failed} failed`)
+      if (res.results.length > 0) {
+        sessionStorage.setItem('latest-analysis', JSON.stringify(res.results[res.results.length - 1]))
+      }
+    },
+    onError: (err) => {
+      if (axios.isAxiosError(err)) {
+        const detail = err.response?.data?.detail
+        toast.error(typeof detail === 'string' ? detail : 'CSV import failed')
+        return
+      }
+      toast.error('CSV import failed. Check backend is running.')
+    }
+  })
+
   const update = (key: keyof ListingInput, value: string | number | undefined) => {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
@@ -118,6 +139,18 @@ export function AnalyzePage() {
       return_policy_days: safeNum(form.return_policy_days),
       shipping_country: form.shipping_country?.trim() || undefined
     })
+  }
+
+  const onCsvButtonClick = () => csvInputRef.current?.click()
+
+  const onCsvPicked = (file: File | null) => {
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      toast.error('Please choose a .csv file')
+      return
+    }
+    setImportSummary(null)
+    csvMutation.mutate(file)
   }
 
   const loadingText = loadingMessages[Math.floor(Date.now() / 700) % loadingMessages.length]
@@ -187,8 +220,43 @@ export function AnalyzePage() {
                 {mutation.isPending ? 'Analyzing...' : 'Analyze Risk'}
               </Button>
             </motion.div>
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => onCsvPicked(e.target.files?.[0] ?? null)}
+            />
+            <motion.div whileTap={{ scale: 0.98 }} whileHover={{ y: -2 }}>
+              <Button variant="secondary" size="lg" onClick={onCsvButtonClick} disabled={csvMutation.isPending}>
+                <FileUp className="mr-2 h-4 w-4" />
+                {csvMutation.isPending ? 'Importing CSV...' : 'Import Bulk CSV'}
+              </Button>
+            </motion.div>
             {mutation.isPending && <p className="animate-pulse text-sm text-muted-foreground">{loadingText}</p>}
           </div>
+
+          {csvMutation.isPending && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 rounded-xl border border-primary/25 bg-primary/10 p-3 text-sm text-primary"
+            >
+              <span className="inline-flex animate-pulse items-center">Analyzing CSV rows and creating listings...</span>
+            </motion.div>
+          )}
+
+          {importSummary && !csvMutation.isPending && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.25 }}
+              className="mt-3 rounded-xl border border-emerald-300/40 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300"
+            >
+              CSV import complete. Imported <span className="font-semibold">{importSummary.imported}</span> row(s),
+              failed <span className="font-semibold">{importSummary.failed}</span>.
+            </motion.div>
+          )}
         </CardContent>
       </Card>
     </div>

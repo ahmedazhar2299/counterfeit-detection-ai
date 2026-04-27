@@ -16,7 +16,7 @@ export function HistoryPage() {
   const [brand, setBrand] = useState('all')
   const [category, setCategory] = useState('all')
   const [action, setAction] = useState('all')
-  const [sort, setSort] = useState('risk_desc')
+  const [sort, setSort] = useState('date_desc')
 
   const query = useQuery({ queryKey: ['history'], queryFn: () => getListings(100) })
 

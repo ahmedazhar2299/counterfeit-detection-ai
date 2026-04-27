@@ -44,6 +44,18 @@ export type AnalysisResponse = {
   }
 }
 
+export type CsvAnalyzeRowError = {
+  row: number
+  message: string
+}
+
+export type CsvAnalyzeResponse = {
+  imported: number
+  failed: number
+  results: AnalysisResponse[]
+  errors: CsvAnalyzeRowError[]
+}
+
 export type ListingWithAnalysis = {
   listing: ListingInput & { id: number; created_at: string }
   latest_analysis?: AnalysisResponse
