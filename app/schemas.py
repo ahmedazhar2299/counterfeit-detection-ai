@@ -57,6 +57,18 @@ class AnalysisResponse(BaseModel):
     model: ModelMeta
 
 
+class CsvAnalyzeRowError(BaseModel):
+    row: int
+    message: str
+
+
+class CsvAnalyzeResponse(BaseModel):
+    imported: int
+    failed: int
+    results: list[AnalysisResponse]
+    errors: list[CsvAnalyzeRowError]
+
+
 class ListingResponse(ListingInput):
     id: int
     created_at: datetime

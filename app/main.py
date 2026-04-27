@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -15,6 +18,7 @@ from .ml.risk_engine import get_engine
 from .models import Analysis, Feedback, Listing, TrainingRun
 from .schemas import (
     AnalysisResponse,
+    CsvAnalyzeResponse,
     FeedbackRequest,
     FeedbackResponse,
     ListingInput,
@@ -90,23 +94,29 @@ def _listing_to_response(listing: Listing) -> ListingResponse:
     )
 
 
-@app.post("/api/analyze", response_model=AnalysisResponse)
-async def analyze_listing(payload: ListingInput, db: Session = Depends(get_db)):
+async def _persist_analysis(payload: ListingInput, db: Session, include_llm: bool = True) -> AnalysisResponse:
     listing = Listing(**payload.model_dump())
     db.add(listing)
     db.flush()
 
     result = get_engine().analyze(payload.model_dump())
-    llm = await maybe_generate_llm_summary(
-        payload=payload.model_dump(),
-        action=result.action,
-        risk_score=result.risk_score,
-        structured_prob=result.structured_prob,
-        text_prob=result.text_prob,
-        fused_prob=result.fused_prob,
-        explanations=result.explanations,
-        highlights=result.highlights,
-    )
+    if include_llm:
+        llm = await maybe_generate_llm_summary(
+            payload=payload.model_dump(),
+            action=result.action,
+            risk_score=result.risk_score,
+            structured_prob=result.structured_prob,
+            text_prob=result.text_prob,
+            fused_prob=result.fused_prob,
+            explanations=result.explanations,
+            highlights=result.highlights,
+        )
+        llm_summary = llm.summary
+        llm_provider = llm.provider
+    else:
+        llm_summary = None
+        llm_provider = None
+
     analysis = Analysis(
         listing_id=listing.id,
         structured_prob=result.structured_prob,
@@ -116,8 +126,8 @@ async def analyze_listing(payload: ListingInput, db: Session = Depends(get_db)):
         action=result.action,
         explanations_json=result.explanations,
         highlights_json=result.highlights,
-        llm_summary=llm.summary,
-        llm_provider=llm.provider,
+        llm_summary=llm_summary,
+        llm_provider=llm_provider,
         model_version=result.model_version,
         training_timestamp=result.training_timestamp,
     )
@@ -125,6 +135,84 @@ async def analyze_listing(payload: ListingInput, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(analysis)
     return _analysis_to_response(analysis)
+
+
+def _csv_row_to_payload(row: dict[str, str]) -> dict:
+    norm = {str(k).strip(): (str(v).strip() if v is not None else "") for k, v in row.items()}
+    return {
+        "title": norm.get("title", ""),
+        "description": norm.get("description", ""),
+        "brand": norm.get("brand", ""),
+        "category": norm.get("category", ""),
+        "price": norm.get("price", ""),
+        "currency": norm.get("currency", "") or "USD",
+        "seller_age_days": norm.get("seller_age_days") or None,
+        "seller_rating": norm.get("seller_rating") or None,
+        "seller_sales_count": norm.get("seller_sales_count") or None,
+        "review_count": norm.get("review_count") or None,
+        "shipping_country": norm.get("shipping_country") or None,
+        "return_policy_days": norm.get("return_policy_days") or None,
+    }
+
+
+@app.post("/api/analyze", response_model=AnalysisResponse)
+async def analyze_listing(payload: ListingInput, db: Session = Depends(get_db)):
+    return await _persist_analysis(payload=payload, db=db, include_llm=True)
+
+
+@app.post("/api/analyze-csv", response_model=CsvAnalyzeResponse)
+async def analyze_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Please upload a valid .csv file")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="CSV file is empty")
+
+    try:
+        text_content = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded")
+
+    reader = csv.DictReader(io.StringIO(text_content))
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="CSV must include a header row")
+
+    required = {"title", "description", "brand", "category", "price"}
+    headers = {h.strip() for h in reader.fieldnames if h}
+    missing = sorted(required - headers)
+    if missing:
+        raise HTTPException(status_code=400, detail=f"CSV missing required columns: {', '.join(missing)}")
+
+    results: list[AnalysisResponse] = []
+    errors: list[dict] = []
+    max_rows = 500
+
+    for row_index, row in enumerate(reader, start=2):
+        if row_index > max_rows + 1:
+            errors.append({"row": row_index, "message": f"Row limit exceeded ({max_rows}). Remaining rows skipped."})
+            break
+        if not row:
+            continue
+        raw_payload = _csv_row_to_payload(row)
+        try:
+            payload = ListingInput.model_validate(raw_payload)
+        except ValidationError as exc:
+            msg = exc.errors()[0]["msg"] if exc.errors() else "Validation failed"
+            errors.append({"row": row_index, "message": msg})
+            continue
+        try:
+            analysis = await _persist_analysis(payload=payload, db=db, include_llm=False)
+            results.append(analysis)
+        except Exception as exc:
+            errors.append({"row": row_index, "message": f"Analysis failed: {type(exc).__name__}"})
+
+    return CsvAnalyzeResponse(
+        imported=len(results),
+        failed=len(errors),
+        results=results,
+        errors=errors,
+    )
 
 
 @app.get("/api/listings", response_model=list[ListingWithAnalysis])

@@ -66,6 +66,24 @@ Default API URL:
 Docs:
 - `http://127.0.0.1:8000/docs`
 
+## Main Endpoints
+- `POST /api/analyze`
+- `POST /api/analyze-csv`
+- `GET /api/listings`
+- `GET /api/listings/{id}`
+- `POST /api/feedback`
+- `GET /api/metrics`
+- `GET /api/model-info`
+
+## CSV Batch Import
+- Upload a UTF-8 CSV to `POST /api/analyze-csv`
+- Required headers:
+  - `title, description, brand, category, price`
+- Optional headers:
+  - `currency, seller_age_days, seller_rating, seller_sales_count, review_count, shipping_country, return_policy_days`
+- Sample file:
+  - `backend/data/temp_import_listings.csv`
+
 ## Test
 From the repo root:
 

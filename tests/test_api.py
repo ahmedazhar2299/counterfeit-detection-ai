@@ -39,8 +39,27 @@ def test_analyze_validation_error():
 def test_metrics_and_model_info():
     metrics_response = client.get("/api/metrics")
     assert metrics_response.status_code == 200
-    assert "metrics" in metrics_response.json()
+    assert "model_validation" in metrics_response.json()
+    assert "live_marketplace" in metrics_response.json()
 
     model_response = client.get("/api/model-info")
     assert model_response.status_code == 200
     assert "version" in model_response.json()
+
+
+def test_analyze_csv_import():
+    content = (
+        "title,description,brand,category,price,currency,seller_age_days,seller_rating,seller_sales_count,review_count,shipping_country,return_policy_days\n"
+        "Apple iPhone 15,Original with invoice and box.,Apple,Electronics,999,USD,400,4.8,1200,350,US,30\n"
+        "Bad row,short,AB,B,-10,USD,,,,,,\n"
+    )
+    response = client.post(
+        "/api/analyze-csv",
+        files={"file": ("batch.csv", content, "text/csv")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["imported"] == 1
+    assert body["failed"] == 1
+    assert len(body["results"]) == 1
+    assert len(body["errors"]) == 1
